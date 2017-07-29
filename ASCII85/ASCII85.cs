@@ -3,10 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace ASCII85
+namespace Disibio.Encoding
 {
     public static class ASCII85
     {
+        private const string beginDelimiter = "<~";
+        private const string endDelimiter = "~>";
+
         /// <summary>
         /// Converts a byte array into an Adobe version ASCII85 encoded representation.
         /// </summary>
@@ -30,12 +33,13 @@ namespace ASCII85
                 if (chunk == 0)
                 {
                     outList.AddLast(122);
-                    continue;
                 }
-
-                for (int j = 4; j >= 0; --j)
+                else
                 {
-                    outList.AddLast((byte)((chunk / Math.Pow(85, j) % 85) + 33));
+                    for (int j = 4; j >= 0; --j)
+                    {
+                        outList.AddLast((byte)((chunk / Math.Pow(85, j) % 85) + 33));
+                    }
                 }
             }
 
@@ -43,10 +47,10 @@ namespace ASCII85
             byte[] outBytes = outList.ToArray();
             Array.Resize(ref outBytes, outBytes.Length - ((4 - (inSize % 4)) % 4));
 
-            string encodedString = Encoding.ASCII.GetString(outBytes);
+            string encodedString = System.Text.Encoding.ASCII.GetString(outBytes);
             if (includeDelimiters)
             {
-                encodedString = "<~" + encodedString + "~>";
+                encodedString = beginDelimiter + encodedString + endDelimiter;
             }
             return encodedString;
         }
@@ -58,7 +62,10 @@ namespace ASCII85
         /// <returns> The byte array the encoded string derives from. </returns>
         public static byte[] Decode(string encodedString)
         {
-            encodedString = encodedString.Replace("<~", string.Empty).Replace("~>", string.Empty);
+            if (encodedString.StartsWith(beginDelimiter) && encodedString.EndsWith(endDelimiter))
+            {
+                encodedString = encodedString.Substring(2, encodedString.Length - 4);
+            }
             encodedString = new string(encodedString.ToCharArray().Where(c => !char.IsWhiteSpace(c)).ToArray());
 
             int inSize = encodedString.Length;
@@ -68,7 +75,7 @@ namespace ASCII85
                 encodedString += 'u';
             }
 
-            byte[] bytes = Encoding.ASCII.GetBytes(encodedString);
+            byte[] bytes = System.Text.Encoding.ASCII.GetBytes(encodedString);
             LinkedList<byte> outList = new LinkedList<byte>();
 
             for (int i = 0; i < bytes.Length; i += 5)

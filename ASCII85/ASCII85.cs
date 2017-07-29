@@ -64,7 +64,7 @@ namespace Disibio.Encoding
         {
             if (encodedString.StartsWith(beginDelimiter) && encodedString.EndsWith(endDelimiter))
             {
-                encodedString = encodedString.Substring(2, encodedString.Length - 4);
+                encodedString = encodedString.Substring(beginDelimiter.Length, encodedString.Length - (beginDelimiter.Length + endDelimiter.Length));
             }
             encodedString = new string(encodedString.ToCharArray().Where(c => !char.IsWhiteSpace(c)).ToArray());
 
@@ -86,12 +86,17 @@ namespace Disibio.Encoding
                     long summedBytes = 0;
                     for (int j = 0; j < 5; ++j)
                     {
-                        if (bytes[i + j] == 122)
+                        byte currentByte = bytes[i + j];
+                        if (currentByte == 122)
                         {
                             throw new Exception("Decode Error: Zero group cannot be inside of another group.");
                         }
+                        if (currentByte < 33 || currentByte > 117)
+                        {
+                            throw new Exception("Decode Error: Found character outside of ASCII85 character set.");
+                        }
 
-                        summedBytes += (bytes[i + j] - 33) * (int)Math.Pow(85, 4 - j);
+                        summedBytes += (currentByte - 33) * (int)Math.Pow(85, 4 - j);
                         if (summedBytes > 4294967295)
                         {
                             throw new Exception("Decode Error: Group is too large to decode.");

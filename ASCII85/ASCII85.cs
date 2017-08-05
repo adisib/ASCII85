@@ -36,9 +36,11 @@ namespace Disibio.Encoding
                 }
                 else
                 {
-                    for (int j = 4; j >= 0; --j)
+                    double x = Math.Pow(85, 4);
+                    for (int j = 0; j < 5; ++j)
                     {
-                        outBytes[writtenByteCount++] = (byte)((chunk / Math.Pow(85, j) % 85) + 33);
+                        outBytes[writtenByteCount++] = (byte)( ((chunk / x) % 85) + 33);
+                        x /= 85;
                     }
                 }
             }
@@ -65,7 +67,7 @@ namespace Disibio.Encoding
             {
                 encodedString = encodedString.Substring(beginDelimiter.Length, encodedString.Length - (beginDelimiter.Length + endDelimiter.Length));
             }
-            encodedString = string.Join("", encodedString.Split((char[])null, StringSplitOptions.RemoveEmptyEntries));
+            encodedString = string.Join(string.Empty, encodedString.Split((char[])null, StringSplitOptions.RemoveEmptyEntries));
 
             int inSize = encodedString.Length;
             // Must be padded to get 5 byte chunks, using 'u' to preserve high order bits
@@ -84,6 +86,7 @@ namespace Disibio.Encoding
                 int chunk = 0;
                 if (bytes[i] != 122)
                 {
+                    double x = Math.Pow(85, 4);
                     long summedBytes = 0;
                     for (int j = 0; j < 5; ++j)
                     {
@@ -97,12 +100,14 @@ namespace Disibio.Encoding
                             throw new Exception("Decode Error: Found character outside of ASCII85 character set.");
                         }
 
-                        summedBytes += (currentByte - 33) * (int)Math.Pow(85, 4 - j);
+                        summedBytes += (currentByte - 33) * (int)x;
                         if (summedBytes > 4294967295)
                         {
                             throw new Exception("Decode Error: Group is too large to decode.");
                         }
                         chunk = (int)(summedBytes);
+
+                        x /= 85;
                     }
                 }
 
@@ -114,7 +119,7 @@ namespace Disibio.Encoding
             }
 
             // Remove extra bytes
-            Array.Resize(ref outBytes, outBytes.Length - ((5 - (inSize % 5)) % 5));
+            Array.Resize(ref outBytes, writtenByteCount - ((5 - (inSize % 5)) % 5));
 
             return outBytes;
         }

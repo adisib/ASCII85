@@ -1,7 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
 namespace Disibio.Encoding
 {
@@ -21,7 +18,10 @@ namespace Disibio.Encoding
             int inSize = inBytes.Length;
             // We might have to add bytes to ensure we always get 4 byte chunks
             Array.Resize(ref inBytes, inBytes.Length + ((4 - (inSize % 4)) % 4));
-            LinkedList<byte> outList = new LinkedList<byte>();
+
+            // We buffer outBytes to theoretical maximum, and reduce its size as necessary later
+            byte[] outBytes = new byte[(int)Math.Ceiling(inBytes.Length * 1.25)];
+            int writtenByteCount = 0;
 
             int s = sizeof(byte) * 8;
             for (int i = 0; i < inBytes.Length; i += 4)
@@ -32,20 +32,19 @@ namespace Disibio.Encoding
                           | (int)(inBytes[i+3]) << (s*0);
                 if (chunk == 0)
                 {
-                    outList.AddLast(122);
+                    outBytes[writtenByteCount++] = 122;
                 }
                 else
                 {
                     for (int j = 4; j >= 0; --j)
                     {
-                        outList.AddLast((byte)((chunk / Math.Pow(85, j) % 85) + 33));
+                        outBytes[writtenByteCount++] = (byte)((chunk / Math.Pow(85, j) % 85) + 33);
                     }
                 }
             }
 
-            // Remove any bytes that were added
-            byte[] outBytes = outList.ToArray();
-            Array.Resize(ref outBytes, outBytes.Length - ((4 - (inSize % 4)) % 4));
+            // Remove extra bytes
+            Array.Resize(ref outBytes, writtenByteCount - ((4 - (inSize % 4)) % 4));
 
             string encodedString = System.Text.Encoding.ASCII.GetString(outBytes);
             if (includeDelimiters)
@@ -66,7 +65,7 @@ namespace Disibio.Encoding
             {
                 encodedString = encodedString.Substring(beginDelimiter.Length, encodedString.Length - (beginDelimiter.Length + endDelimiter.Length));
             }
-            encodedString = new string(encodedString.ToCharArray().Where(c => !char.IsWhiteSpace(c)).ToArray());
+            encodedString = string.Join("", encodedString.Split((char[])null, StringSplitOptions.RemoveEmptyEntries));
 
             int inSize = encodedString.Length;
             // Must be padded to get 5 byte chunks, using 'u' to preserve high order bits
@@ -74,9 +73,11 @@ namespace Disibio.Encoding
             {
                 encodedString += 'u';
             }
-
             byte[] bytes = System.Text.Encoding.ASCII.GetBytes(encodedString);
-            LinkedList<byte> outList = new LinkedList<byte>();
+
+            // We buffer outBytes to theoretical maximum, and reduce its size as necessary later
+            byte[] outBytes = new byte[(int)Math.Ceiling(encodedString.Length * 0.8)];
+            int writtenByteCount = 0;
 
             for (int i = 0; i < bytes.Length; i += 5)
             {
@@ -108,12 +109,11 @@ namespace Disibio.Encoding
                 int s = sizeof(byte) * 8;
                 for (int j = 3; j >= 0; --j)
                 {
-                    outList.AddLast( (byte)(chunk >> (s*j)) );
+                    outBytes[writtenByteCount++] = (byte)(chunk >> (s*j));
                 }
             }
 
-            byte[] outBytes = outList.ToArray();
-            // Remove any bytes that were added
+            // Remove extra bytes
             Array.Resize(ref outBytes, outBytes.Length - ((5 - (inSize % 5)) % 5));
 
             return outBytes;

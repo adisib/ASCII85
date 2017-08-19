@@ -26,20 +26,20 @@ namespace Disibio.Encoding
             int s = sizeof(byte) * 8;
             for (int i = 0; i < inBytes.Length; i += 4)
             {
-                int chunk = (int)(inBytes[i+0]) << (s*3)
-                          | (int)(inBytes[i+1]) << (s*2)
-                          | (int)(inBytes[i+2]) << (s*1)
-                          | (int)(inBytes[i+3]) << (s*0);
-                if (chunk == 0)
+                uint byteGroup = (uint)(inBytes[i+0]) << (s*3)
+                               | (uint)(inBytes[i+1]) << (s*2)
+                               | (uint)(inBytes[i+2]) << (s*1)
+                               | (uint)(inBytes[i+3]) << (s*0);
+                if (byteGroup == 0)
                 {
                     outBytes[writtenByteCount++] = 122;
                 }
                 else
                 {
-                    double x = Math.Pow(85, 4);
+                    int x = (int)Math.Pow(85, 4);
                     for (int j = 0; j < 5; ++j)
                     {
-                        outBytes[writtenByteCount++] = (byte)( ((chunk / x) % 85) + 33);
+                        outBytes[writtenByteCount++] = (byte)( ((byteGroup / x) % 85) + 33);
                         x /= 85;
                     }
                 }
@@ -75,19 +75,18 @@ namespace Disibio.Encoding
             {
                 encodedString += 'u';
             }
-            byte[] bytes = System.Text.Encoding.ASCII.GetBytes(encodedString);
 
-            // We buffer outBytes to theoretical maximum, and reduce its size as necessary later
-            byte[] outBytes = new byte[(int)Math.Ceiling(encodedString.Length * 0.8)];
+            // We read more bytes than we write, so we can use the array for both input and output at the same time to save memory
+            byte[] bytes = System.Text.Encoding.ASCII.GetBytes(encodedString);
             int writtenByteCount = 0;
 
             for (int i = 0; i < bytes.Length; i += 5)
             {
-                int chunk = 0;
+                uint byteGroup = 0;
                 if (bytes[i] != 122)
                 {
-                    double x = Math.Pow(85, 4);
-                    long summedBytes = 0;
+                    int x = (int)Math.Pow(85, 4);
+                    long summedBytes = 0l;
                     for (int j = 0; j < 5; ++j)
                     {
                         byte currentByte = bytes[i + j];
@@ -100,28 +99,28 @@ namespace Disibio.Encoding
                             throw new Exception("Decode Error: Found character outside of ASCII85 character set.");
                         }
 
-                        summedBytes += (currentByte - 33) * (int)x;
-                        if (summedBytes > 4294967295)
-                        {
-                            throw new Exception("Decode Error: Group is too large to decode.");
-                        }
-                        chunk = (int)(summedBytes);
-
+                        summedBytes += (currentByte - 33) * x;
                         x /= 85;
                     }
+                    
+                    if (summedBytes > 4294967295) // 2^32 - 1
+                    {
+                        throw new Exception("Decode Error: Group is too large to decode.");
+                    }
+                    byteGroup = (uint)(summedBytes);
                 }
 
                 int s = sizeof(byte) * 8;
                 for (int j = 3; j >= 0; --j)
                 {
-                    outBytes[writtenByteCount++] = (byte)(chunk >> (s*j));
+                    bytes[writtenByteCount++] = (byte)(byteGroup >> (s*j));
                 }
             }
 
             // Remove extra bytes
-            Array.Resize(ref outBytes, writtenByteCount - ((5 - (inSize % 5)) % 5));
+            Array.Resize(ref bytes, writtenByteCount - ((5 - (inSize % 5)) % 5));
 
-            return outBytes;
+            return bytes;
         }
     }
 }

@@ -17,8 +17,8 @@ namespace Disibio.Encoding
         /// <returns> An ASCII85 encoded string. </returns>
         public static string Encode(byte[] inBytes, bool includeDelimiters = true)
         {
-            int paddedByteCount = ((4 - (inBytes.Length % 4)) % 4);
             // We might have to add bytes to ensure we always get 4 byte chunks
+            int paddedByteCount = ((4 - (inBytes.Length % 4)) % 4);
             Array.Resize(ref inBytes, inBytes.Length + paddedByteCount);
 
             // We buffer outBytes to theoretical maximum, and reduce its size as necessary later
@@ -40,7 +40,7 @@ namespace Disibio.Encoding
                 {
                     for (int j = 4; j >= 0; --j)
                     {
-                        outBytes[writtenByteCount++] = (byte)( ((byteGroup / pow85[j]) % 85) + 33);
+                        outBytes[writtenByteCount++] = (byte)( ((byteGroup / pow85[j]) % 85) + 33 );
                     }
                 }
             }
@@ -69,33 +69,25 @@ namespace Disibio.Encoding
                 encodedString = encodedString.Substring(beginDelimiter.Length, encodedString.Length - (beginDelimiter.Length + endDelimiter.Length));
             }
             encodedString = string.Join(string.Empty, encodedString.Split((char[])null, StringSplitOptions.RemoveEmptyEntries));
+            encodedString = encodedString.Replace("z", "!!!!!");
 
-            byte[] bytes = System.Text.Encoding.ASCII.GetBytes(encodedString);
-
-            byte[] outBytes = new byte[(int)Math.Ceiling(bytes.Length * 0.8) + 5];
-            int writtenByteCount = 0, paddedByteCount = 0;
-
-            long byteGroup = 0L;
-            for (int i = 0, groupPos = 0; (i < bytes.Length) || (groupPos != 0); ++i, groupPos = (groupPos + 1) % 5)
+            // Must be padded to get 5 byte chunks, using 'u' to preserve high order bits
+            int paddedByteCount = ((5 - (encodedString.Length % 5)) % 5);
+            for (int i = 0; i < paddedByteCount; ++i)
             {
-                byte currentByte;
-                if (i < bytes.Length)
-                {
-                    currentByte = bytes[i];
-                }
-                else // Must be padded to get 5 byte chunks, using max value to preserve high order bits
-                {
-                    currentByte = 117;
-                    ++paddedByteCount;
-                }
+                encodedString += 'u';
+            }
 
-                if (currentByte == 122 && groupPos == 0)
+            // We read more bytes than we write, so we can use the array for both input and output at the same time to save memory
+            byte[] bytes = System.Text.Encoding.ASCII.GetBytes(encodedString);
+            int writtenByteCount = 0;
+
+            for (int i = 0; i < bytes.Length; i += 5)
+            {
+                long byteGroup = 0L;
+                for (int j = 0; j < 5; ++j)
                 {
-                    Array.Resize(ref outBytes, outBytes.Length + 4);
-                    groupPos = 4;
-                }
-                else
-                {
+                    byte currentByte = bytes[i + j];
                     if (currentByte == 122)
                     {
                         throw new Exception("Decode Error: Zero group cannot be inside of another group.");
@@ -105,30 +97,25 @@ namespace Disibio.Encoding
                         throw new Exception("Decode Error: Found character outside of ASCII85 character set.");
                     }
 
-                    byteGroup += (currentByte - 33) * pow85[4 - groupPos];
+                    byteGroup += (currentByte - 33) * pow85[4 - j];
                 }
 
-                if (groupPos >= 4)
+                if (byteGroup > 4294967295) // 2^32 - 1
                 {
-                    if (byteGroup > 4294967295) // 2^32 - 1
-                    {
-                        throw new Exception("Decode Error: Group is too large to decode.");
-                    }
+                    throw new Exception("Decode Error: Group is too large to decode.");
+                }
 
-                    int s = sizeof(byte) * 8;
-                    for (int j = 3; j >= 0; --j)
-                    {
-                        outBytes[writtenByteCount++] = (byte)( ((uint)(byteGroup)) >> (s*j));
-                    }
-
-                    byteGroup = 0L;
+                int s = sizeof(byte) * 8;
+                for (int j = 3; j >= 0; --j)
+                {
+                    bytes[writtenByteCount++] = (byte)( ((uint)(byteGroup)) >> (s * j) );
                 }
             }
 
             // Remove extra bytes
-            Array.Resize(ref outBytes, writtenByteCount - paddedByteCount);
+            Array.Resize(ref bytes, writtenByteCount - paddedByteCount);
 
-            return outBytes;
+            return bytes;
         }
     }
 }

@@ -4,6 +4,10 @@ namespace Disibio.Encoding
 {
     public static class ASCII85
     {
+        // Some ASCII85 encoders will compress a group of spaces into a 'y' character.
+        // The Adobe version (which is implemented here) does not support this, but I will allow enabling it anyway if you set this to true.
+        private const bool compressSpaceGroups = false;
+
         private const string beginDelimiter = "<~";
         private const string endDelimiter = "~>";
 
@@ -35,6 +39,10 @@ namespace Disibio.Encoding
                 if (byteGroup == 0)
                 {
                     outBytes[writtenByteCount++] = 122;
+                }
+                else if (compressSpaceGroups && byteGroup == 538976288)
+                {
+                    outBytes[writtenByteCount++] = 121;
                 }
                 else
                 {
@@ -70,6 +78,10 @@ namespace Disibio.Encoding
             }
             encodedString = string.Join(string.Empty, encodedString.Split((char[])null, StringSplitOptions.RemoveEmptyEntries));
             encodedString = encodedString.Replace("z", "!!!!!");
+            if (compressSpaceGroups)
+            {
+                encodedString = encodedString.Replace("y", "+<VdL");
+            }
 
             // Must be padded to get 5 byte chunks, using 'u' to preserve high order bits
             int paddedByteCount = ((5 - (encodedString.Length % 5)) % 5);
